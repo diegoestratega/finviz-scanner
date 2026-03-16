@@ -40,7 +40,6 @@ def build_filter_string(
     highlow52w: Optional[str],
 ) -> str:
     parts: List[str] = []
-
     if marketcap:
         parts.append(marketcap)
     if optionable:
@@ -57,7 +56,6 @@ def build_filter_string(
         parts.append(debteq)
     if highlow52w:
         parts.append(highlow52w)
-
     return ",".join(parts)
 
 
@@ -89,10 +87,8 @@ def parse_table_rows(soup: BeautifulSoup) -> List[List[str]]:
         if headers and "Ticker" in headers:
             target = table
             break
-
     if target is None:
         return []
-
     rows_data: List[List[str]] = []
     rows = target.find_all("tr")[1:]
     for row in rows:
@@ -101,7 +97,6 @@ def parse_table_rows(soup: BeautifulSoup) -> List[List[str]]:
             continue
         row_text = [c.get_text(strip=True) for c in cols]
         rows_data.append(row_text)
-
     return rows_data
 
 
@@ -120,28 +115,21 @@ def extract_headers(soup: BeautifulSoup) -> List[str]:
 def scrape_view(view: int, filters: str, sort: str, max_pages: int = 10) -> List[dict]:
     all_rows: List[List[str]] = []
     headers: List[str] = []
-
     offset = 1
     page = 0
-
     while page < max_pages:
         soup = fetch_view_page(view=view, filters=filters, sort=sort, offset=offset)
-
         if not headers:
             headers = extract_headers(soup)
             if not headers:
                 break
-
         rows = parse_table_rows(soup)
         if not rows:
             break
-
         all_rows.extend(rows)
-
         offset += 20
         page += 1
         time.sleep(0.5)
-
     result: List[dict] = []
     for row in all_rows:
         if len(row) != len(headers):
@@ -151,7 +139,6 @@ def scrape_view(view: int, filters: str, sort: str, max_pages: int = 10) -> List
                 row = row + [""] * (len(headers) - len(row))
         item = {headers[i]: row[i] for i in range(len(headers))}
         result.append(item)
-
     return result
 
 
@@ -162,6 +149,28 @@ def index_by_ticker(records: List[dict]) -> dict:
         if ticker:
             index[ticker] = rec
     return index
+
+
+@app.get("/api/debug")
+def debug():
+    scraper = cloudscraper.create_scraper()
+    params = {"v": "131", "f": "", "o": "-perfytd", "r": "1"}
+    resp = scraper.get(FINVIZ_BASE, params=params, headers=HEADERS, timeout=15)
+    html = resp.text
+    soup = BeautifulSoup(html, "html.parser")
+    tables = soup.find_all("table")
+    table_info = []
+    for i, t in enumerate(tables):
+        first_row = t.find("tr")
+        cells = [td.get_text(strip=True) for td in first_row.find_all("td")] if first_row else []
+        table_info.append({"table_index": i, "first_row_cells": cells[:10]})
+    return {
+        "status_code": resp.status_code,
+        "html_length": len(html),
+        "html_snippet": html[:500],
+        "tables_found": len(tables),
+        "table_headers": table_info,
+    }
 
 
 @app.get("/api/scan")
@@ -186,7 +195,6 @@ def scan(
         debteq=debteq,
         highlow52w=highlow52w,
     )
-
     sort_map = {
         "perfmon": "-perfmon",
         "perfytd": "-perfytd",
