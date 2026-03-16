@@ -3,17 +3,16 @@
 import time
 from typing import List, Optional
 
-import requests
+import cloudscraper
 from bs4 import BeautifulSoup
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
-# CORS for your GitHub Pages / any frontend origin
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # tighten later if you want
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -63,13 +62,14 @@ def build_filter_string(
 
 
 def fetch_view_page(view: int, filters: str, sort: str, offset: int) -> BeautifulSoup:
+    scraper = cloudscraper.create_scraper()
     params = {
         "v": str(view),
         "f": filters,
         "o": sort,
         "r": str(offset),
     }
-    resp = requests.get(FINVIZ_BASE, params=params, headers=HEADERS, timeout=15)
+    resp = scraper.get(FINVIZ_BASE, params=params, headers=HEADERS, timeout=15)
     if resp.status_code != 200:
         raise HTTPException(
             status_code=502,
@@ -79,8 +79,6 @@ def fetch_view_page(view: int, filters: str, sort: str, offset: int) -> Beautifu
 
 
 def parse_table_rows(soup: BeautifulSoup) -> List[List[str]]:
-    # Finviz uses the first main data table in the screener area.
-    # We find all tables and pick the one containing "Ticker" in header.
     tables = soup.find_all("table")
     target = None
     for table in tables:
@@ -96,10 +94,9 @@ def parse_table_rows(soup: BeautifulSoup) -> List[List[str]]:
         return []
 
     rows_data: List[List[str]] = []
-    rows = target.find_all("tr")[1:]  # skip header
+    rows = target.find_all("tr")[1:]
     for row in rows:
         cols = row.find_all("td")
-        # Skip rows that are separators or malformed
         if len(cols) < 2:
             continue
         row_text = [c.get_text(strip=True) for c in cols]
@@ -124,7 +121,7 @@ def scrape_view(view: int, filters: str, sort: str, max_pages: int = 10) -> List
     all_rows: List[List[str]] = []
     headers: List[str] = []
 
-    offset = 1  # Finviz starts at r=1
+    offset = 1
     page = 0
 
     while page < max_pages:
@@ -141,16 +138,13 @@ def scrape_view(view: int, filters: str, sort: str, max_pages: int = 10) -> List
 
         all_rows.extend(rows)
 
-        # Finviz shows 20 rows per page; increment offset accordingly
         offset += 20
         page += 1
-        time.sleep(0.5)  # be polite, avoid 429s
+        time.sleep(0.5)
 
     result: List[dict] = []
     for row in all_rows:
-        # Align row length with headers length
         if len(row) != len(headers):
-            # best-effort trim or pad
             if len(row) > len(headers):
                 row = row[: len(headers)]
             else:
@@ -180,12 +174,8 @@ def scan(
     debteq: Optional[str] = Query(None),
     highlow52w: Optional[str] = Query(None),
     optionable: bool = Query(False),
-    sort: str = Query("perfytd"),  # perfmon, perfytd, perfyear
+    sort: str = Query("perfytd"),
 ):
-    """
-    Scan Finviz screener combining Performance (v=131) and Financial (v=161) views.
-    """
-
     filters = build_filter_string(
         marketcap=marketcap,
         optionable=optionable,
@@ -197,7 +187,6 @@ def scan(
         highlow52w=highlow52w,
     )
 
-    # Map sort key to Finviz 'o=' parameter
     sort_map = {
         "perfmon": "-perfmon",
         "perfytd": "-perfytd",
@@ -205,10 +194,7 @@ def scan(
     }
     sort_param = sort_map.get(sort, "-perfytd")
 
-    # 1) Scrape Performance view (v=131)
     perf_records = scrape_view(view=131, filters=filters, sort=sort_param)
-
-    # 2) Scrape Financial view (v=161)
     fin_records = scrape_view(view=161, filters=filters, sort=sort_param)
 
     perf_by_ticker = index_by_ticker(perf_records)
@@ -218,17 +204,11 @@ def scan(
     for ticker, perf_row in perf_by_ticker.items():
         combined = dict(perf_row)
         fin_row = fin_by_ticker.get(ticker, {})
-        # Merge in selected financial fields if present
-        for key in [
-            "EPS Q/Q",
-            "Sales Q/Q",
-            "Debt/Eq",
-        ]:
+        for key in ["EPS Q/Q", "Sales Q/Q", "Debt/Eq"]:
             if key in fin_row:
                 combined[key] = fin_row[key]
         merged.append(combined)
 
-    # Final client-side friendly structure
     results = []
     for row in merged:
         ticker = row.get("Ticker")
@@ -255,7 +235,6 @@ def scan(
             }
         )
 
-    # Sort again by requested performance key (string values like +12.34%)
     def perf_to_float(val: Optional[str]) -> float:
         if not val:
             return float("-inf")
