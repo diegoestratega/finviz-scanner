@@ -1,6 +1,6 @@
 // static/app.js
 
-const API_BASE = "https://YOUR-VERCEL-APP.vercel.app"; // change this
+const API_BASE = "https://finviz-scanner.vercel.app";
 
 const runScanBtn = document.getElementById("runScanBtn");
 const loadingEl = document.getElementById("loading");
