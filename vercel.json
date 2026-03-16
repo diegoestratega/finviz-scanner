@@ -1,5 +1,4 @@
 {
-  "version": 2,
   "builds": [
     {
       "src": "api/scan.py",
@@ -8,8 +7,8 @@
   ],
   "routes": [
     {
-      "src": "/api/scan",
-      "dest": "/api/scan.py"
+      "src": "/(.*)",
+      "dest": "api/scan.py"
     }
   ]
 }
