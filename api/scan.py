@@ -18,7 +18,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 FINVIZ_BASE = "https://finviz.com/screener.ashx"
 HEADERS = {
     "User-Agent": (
@@ -76,40 +75,90 @@ def fetch_view_page(view: int, filters: str, sort: str, offset: int) -> Beautifu
     return BeautifulSoup(resp.text, "html.parser")
 
 
-def parse_table_rows(soup: BeautifulSoup) -> List[List[str]]:
-    tables = soup.find_all("table")
-    target = None
-    for table in tables:
-        header_row = table.find("tr")
-        if not header_row:
-            continue
-        headers = [th.get_text(strip=True) for th in header_row.find_all("td")]
-        if headers and "Ticker" in headers:
-            target = table
-            break
-    if target is None:
-        return []
-    rows_data: List[List[str]] = []
-    rows = target.find_all("tr")[1:]
-    for row in rows:
-        cols = row.find_all("td")
-        if len(cols) < 2:
-            continue
-        row_text = [c.get_text(strip=True) for c in cols]
-        rows_data.append(row_text)
-    return rows_data
+def find_screener_table(soup: BeautifulSoup):
+    """
+    Find the main data table. Finviz's new HTML uses <th> for column headers
+    and a large accessibility <td> as the first cell in every data row.
+    """
+    # Method 1: table whose <th> elements include 'Ticker'
+    for t in soup.find_all("table"):
+        ths = [th.get_text(strip=True) for th in t.find_all("th")]
+        if "Ticker" in ths:
+            return t
+
+    # Method 2: table where a <tr> contains a standalone <td> with text 'Ticker'
+    for t in soup.find_all("table"):
+        for row in t.find_all("tr")[:5]:
+            cells = [td.get_text(strip=True) for td in row.find_all("td")]
+            clean = [c for c in cells if len(c) < 100]
+            if "Ticker" in clean:
+                return t
+
+    # Method 3: table where rows look like stock data (row_no + ticker pattern)
+    for t in soup.find_all("table"):
+        for row in t.find_all("tr")[:10]:
+            cells = [td.get_text(strip=True) for td in row.find_all("td")]
+            clean = [c for c in cells if 0 < len(c) < 50]
+            if (
+                len(clean) >= 3
+                and clean[0].isdigit()
+                and clean[1].isupper()
+                and 1 <= len(clean[1]) <= 6
+            ):
+                return t
+
+    return None
 
 
 def extract_headers(soup: BeautifulSoup) -> List[str]:
-    tables = soup.find_all("table")
-    for table in tables:
-        header_row = table.find("tr")
-        if not header_row:
-            continue
-        headers = [th.get_text(strip=True) for th in header_row.find_all("td")]
-        if headers and "Ticker" in headers:
-            return headers
+    table = find_screener_table(soup)
+    if not table:
+        return []
+
+    # Try <th> elements first (Finviz new design)
+    ths = [th.get_text(strip=True) for th in table.find_all("th")]
+    if "Ticker" in ths:
+        return ths
+
+    # Fallback: find a <tr> where clean cells contain 'Ticker'
+    for row in table.find_all("tr")[:5]:
+        cells = [td.get_text(strip=True) for td in row.find_all("td")]
+        clean = [c for c in cells if len(c) < 100]
+        if "Ticker" in clean:
+            return clean
+
     return []
+
+
+def parse_table_rows(soup: BeautifulSoup) -> List[List[str]]:
+    table = find_screener_table(soup)
+    if not table:
+        return []
+
+    rows_data: List[List[str]] = []
+
+    for row in table.find_all("tr"):
+        cells = row.find_all("td")
+        if not cells:
+            continue
+
+        raw = [c.get_text(strip=True) for c in cells]
+
+        # Skip rows that are column headers
+        clean = [c for c in raw if len(c) < 150]
+        if "Ticker" in clean or "No." in clean:
+            continue
+
+        # Remove the leading accessibility cell (very long text > 100 chars)
+        filtered = [c for c in raw if len(c) < 150]
+
+        # Skip rows that are too short to be data
+        if len(filtered) < 3:
+            continue
+
+        rows_data.append(filtered)
+
+    return rows_data
 
 
 def scrape_view(view: int, filters: str, sort: str, max_pages: int = 10) -> List[dict]:
@@ -117,19 +166,24 @@ def scrape_view(view: int, filters: str, sort: str, max_pages: int = 10) -> List
     headers: List[str] = []
     offset = 1
     page = 0
+
     while page < max_pages:
         soup = fetch_view_page(view=view, filters=filters, sort=sort, offset=offset)
+
         if not headers:
             headers = extract_headers(soup)
             if not headers:
                 break
+
         rows = parse_table_rows(soup)
         if not rows:
             break
+
         all_rows.extend(rows)
         offset += 20
         page += 1
         time.sleep(0.5)
+
     result: List[dict] = []
     for row in all_rows:
         if len(row) != len(headers):
@@ -139,6 +193,7 @@ def scrape_view(view: int, filters: str, sort: str, max_pages: int = 10) -> List
                 row = row + [""] * (len(headers) - len(row))
         item = {headers[i]: row[i] for i in range(len(headers))}
         result.append(item)
+
     return result
 
 
@@ -154,22 +209,23 @@ def index_by_ticker(records: List[dict]) -> dict:
 @app.get("/api/debug")
 def debug():
     scraper = cloudscraper.create_scraper()
-    params = {"v": "131", "f": "", "o": "-perfytd", "r": "1"}
+    # Use correct view numbers: 140=Performance, 130=Financial
+    params = {"v": "140", "f": "", "o": "-perfytd", "r": "1"}
     resp = scraper.get(FINVIZ_BASE, params=params, headers=HEADERS, timeout=15)
     html = resp.text
     soup = BeautifulSoup(html, "html.parser")
-    tables = soup.find_all("table")
-    table_info = []
-    for i, t in enumerate(tables):
-        first_row = t.find("tr")
-        cells = [td.get_text(strip=True) for td in first_row.find_all("td")] if first_row else []
-        table_info.append({"table_index": i, "first_row_cells": cells[:10]})
+
+    table = find_screener_table(soup)
+    headers = extract_headers(soup)
+    rows = parse_table_rows(soup)
+
     return {
         "status_code": resp.status_code,
         "html_length": len(html),
-        "html_snippet": html[:500],
-        "tables_found": len(tables),
-        "table_headers": table_info,
+        "table_found": table is not None,
+        "headers": headers,
+        "first_3_rows": rows[:3],
+        "total_rows_parsed": len(rows),
     }
 
 
@@ -195,6 +251,7 @@ def scan(
         debteq=debteq,
         highlow52w=highlow52w,
     )
+
     sort_map = {
         "perfmon": "-perfmon",
         "perfytd": "-perfytd",
@@ -202,8 +259,9 @@ def scan(
     }
     sort_param = sort_map.get(sort, "-perfytd")
 
-    perf_records = scrape_view(view=131, filters=filters, sort=sort_param)
-    fin_records = scrape_view(view=161, filters=filters, sort=sort_param)
+    # v=140 = Performance view, v=130 = Financial view
+    perf_records = scrape_view(view=140, filters=filters, sort=sort_param)
+    fin_records = scrape_view(view=130, filters=filters, sort=sort_param)
 
     perf_by_ticker = index_by_ticker(perf_records)
     fin_by_ticker = index_by_ticker(fin_records)
