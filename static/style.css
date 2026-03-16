@@ -1,0 +1,172 @@
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  margin: 0;
+  padding: 0;
+  background: #0d1117;
+  color: #e6edf3;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+h1 {
+  margin-bottom: 16px;
+  font-size: 24px;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+}
+
+.filter-group label {
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.filter-group select {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #30363d;
+  background: #090c10;
+  color: #e6edf3;
+}
+
+.checkbox-group {
+  justify-content: center;
+}
+
+.sort-and-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sort-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sort-btn {
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid #30363d;
+  background: #161b22;
+  color: #e6edf3;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.sort-btn-active {
+  background: #238636;
+  border-color: #2ea043;
+}
+
+.actions button {
+  padding: 8px 14px;
+  border-radius: 4px;
+  border: none;
+  background: #1f6feb;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.actions button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.loading {
+  color: #f0f6fc;
+  font-weight: 500;
+}
+
+.hidden {
+  display: none;
+}
+
+.result-count {
+  font-size: 13px;
+  color: #8b949e;
+}
+
+.finviz-link {
+  font-size: 13px;
+  color: #58a6ff;
+  text-decoration: none;
+}
+
+.finviz-link:hover {
+  text-decoration: underline;
+}
+
+.results {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+thead {
+  background: #161b22;
+}
+
+th,
+td {
+  border: 1px solid #30363d;
+  padding: 4px 6px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+tbody tr:nth-child(even) {
+  background: #0d1117;
+}
+
+tbody tr:nth-child(odd) {
+  background: #02040a;
+}
+
+a {
+  color: #58a6ff;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.perf-positive {
+  color: #3fb950;
+}
+
+.perf-negative {
+  color: #f85149;
+}
