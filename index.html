@@ -3,16 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <title>Finviz Fundamentals & Performance Scanner</title>
-  <link rel="stylesheet" href="static/style.css" />
+  /style.css" />
 </head>
 <body>
   <div class="container">
     <h1>Finviz Fundamentals &amp; Performance Scanner</h1>
 
     <div class="filters">
-
       <div class="filter-group">
-        <label for="marketcap">Market Cap</label>
+        abel for="marketcap">Market Cap</label>
         <select id="marketcap">
           <option value="">Any</option>
           <option value="cap_midover">&gt; $2B</option>
@@ -22,7 +21,7 @@
       </div>
 
       <div class="filter-group">
-        <label for="pe">P/E</label>
+        abel for="pe">P/E</label>
         <select id="pe">
           <option value="">Any</option>
           <option value="fa_pe_profitable">Profitable</option>
@@ -34,7 +33,7 @@
       </div>
 
       <div class="filter-group">
-        <label for="fpe">Forward P/E</label>
+        abel for="fpe">Forward P/E</label>
         <select id="fpe">
           <option value="">Any</option>
           <option value="fa_fpe_profitable">Profitable</option>
@@ -46,7 +45,7 @@
       </div>
 
       <div class="filter-group">
-        <label for="epsqoq">EPS Q/Q</label>
+        abel for="epsqoq">EPS Q/Q</label>
         <select id="epsqoq">
           <option value="">Any</option>
           <option value="fa_epsqoq_pos">Positive</option>
@@ -56,7 +55,7 @@
       </div>
 
       <div class="filter-group">
-        <label for="salesqoq">Sales Q/Q</label>
+        abel for="salesqoq">Sales Q/Q</label>
         <select id="salesqoq">
           <option value="">Any</option>
           <option value="fa_salesqoq_pos">Positive</option>
@@ -66,7 +65,7 @@
       </div>
 
       <div class="filter-group">
-        <label for="debteq">Debt/Equity</label>
+        abel for="debteq">Debt/Equity</label>
         <select id="debteq">
           <option value="">Any</option>
           <option value="fa_debteq_low">Low</option>
@@ -76,7 +75,7 @@
       </div>
 
       <div class="filter-group">
-        <label for="highlow52w">52W High/Low</label>
+        abel for="highlow52w">52W High/Low</label>
         <select id="highlow52w">
           <option value="">Any</option>
           <option value="ta_highlow52w_nl">New 52W Low</option>
@@ -86,18 +85,17 @@
       </div>
 
       <div class="filter-group checkbox-group">
-        <label>
+        abel>
           <input type="checkbox" id="optionable" />
           Optionable
         </label>
       </div>
-
     </div>
 
     <div class="sort-and-actions">
       <div class="sort-buttons">
-        <button data-sort="perfmon" class="sort-btn">Sort by Perf Month ↑</button>
-        <button data-sort="perfytd" class="sort-btn sort-btn-active">Sort by Perf YTD ↑</button>
+        <button data-sort="perfmon"  class="sort-btn">Sort by Perf Month ↑</button>
+        <button data-sort="perfytd"  class="sort-btn sort-btn-active">Sort by Perf YTD ↑</button>
         <button data-sort="perfyear" class="sort-btn">Sort by Perf Year ↑</button>
       </div>
       <div class="actions">
@@ -106,7 +104,7 @@
     </div>
 
     <div class="status-bar">
-      <div id="loading" class="loading hidden">⏳ Loading...</div>
+      <div id="loading" class="loading hidden">⏳ Loading... (large scans may take up to 60s)</div>
       <div id="resultCount" class="result-count">No results yet</div>
       <a id="finvizLink" href="#" target="_blank" class="finviz-link hidden">
         ↗ Open equivalent Finviz screener
@@ -117,21 +115,17 @@
       <table id="resultsTable">
         <thead>
           <tr>
-            <th>Ticker</th>
-            <th>Company</th>
-            <th>Sector</th>
-            <th>Industry</th>
-            <th>Mkt Cap</th>
-            <th>P/E</th>
-            <th>Fwd P/E</th>
-            <th>EPS Q/Q</th>
-            <th>Sales Q/Q</th>
-            <th>Debt/Eq</th>
-            <th>52W High</th>
-            <th>52W Low</th>
-            <th>Perf Month</th>
-            <th>Perf YTD</th>
-            <th>Perf Year</th>
+            <th class="col-ticker">Ticker</th>
+            <th class="col-company">Company</th>
+            <th class="col-num">Mkt Cap</th>
+            <th class="col-num">P/E</th>
+            <th class="col-num">Fwd P/E</th>
+            <th class="col-num">EPS Q/Q</th>
+            <th class="col-num">Sales Q/Q</th>
+            <th class="col-num">Debt/Eq</th>
+            <th class="col-perf">Perf Month</th>
+            <th class="col-perf">Perf YTD</th>
+            <th class="col-perf">Perf Year</th>
           </tr>
         </thead>
         <tbody></tbody>

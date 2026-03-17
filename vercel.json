@@ -10,5 +10,10 @@
       "src": "/(.*)",
       "dest": "api/scan.py"
     }
-  ]
+  ],
+  "functions": {
+    "api/scan.py": {
+      "maxDuration": 60
+    }
+  }
 }
