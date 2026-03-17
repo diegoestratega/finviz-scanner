@@ -6,31 +6,20 @@ const runScanBtn = document.getElementById("runScanBtn");
 const loadingEl = document.getElementById("loading");
 const resultCountEl = document.getElementById("resultCount");
 const finvizLinkEl = document.getElementById("finvizLink");
-const resultsTableBody = document
-  .getElementById("resultsTable")
-  .querySelector("tbody");
+const resultsTableBody = document.getElementById("resultsTable").querySelector("tbody");
 
 let currentSort = "perfytd";
 
 function getFilterValues() {
-  const marketcap = document.getElementById("marketcap").value;
-  const pe = document.getElementById("pe").value;
-  const fpe = document.getElementById("fpe").value;
-  const epsqoq = document.getElementById("epsqoq").value;
-  const salesqoq = document.getElementById("salesqoq").value;
-  const debteq = document.getElementById("debteq").value;
-  const highlow52w = document.getElementById("highlow52w").value;
-  const optionable = document.getElementById("optionable").checked;
-
   return {
-    marketcap,
-    pe,
-    fpe,
-    epsqoq,
-    salesqoq,
-    debteq,
-    highlow52w,
-    optionable,
+    marketcap: document.getElementById("marketcap").value,
+    pe: document.getElementById("pe").value,
+    fpe: document.getElementById("fpe").value,
+    epsqoq: document.getElementById("epsqoq").value,
+    salesqoq: document.getElementById("salesqoq").value,
+    debteq: document.getElementById("debteq").value,
+    highlow52w: document.getElementById("highlow52w").value,
+    optionable: document.getElementById("optionable").checked,
   };
 }
 
@@ -44,7 +33,7 @@ function buildQueryString(params) {
   if (params.debteq) q.append("debteq", params.debteq);
   if (params.highlow52w) q.append("highlow52w", params.highlow52w);
   if (params.optionable) q.append("optionable", "true");
-  if (currentSort) q.append("sort", currentSort);
+  q.append("sort", currentSort);
   return q.toString();
 }
 
@@ -59,11 +48,7 @@ function setLoading(isLoading) {
 }
 
 function updateResultCount(count) {
-  if (count === 0) {
-    resultCountEl.textContent = "No results found";
-  } else {
-    resultCountEl.textContent = `${count} stocks found`;
-  }
+  resultCountEl.textContent = count === 0 ? "No results found" : `${count} stocks found`;
 }
 
 function updateFinvizLink(filters) {
@@ -72,7 +57,7 @@ function updateFinvizLink(filters) {
     return;
   }
   const params = new URLSearchParams();
-  params.set("v", "131"); // performance view as default
+  params.set("v", "111");
   params.set("f", filters);
   finvizLinkEl.href = `https://finviz.com/screener.ashx?${params.toString()}`;
   finvizLinkEl.classList.remove("hidden");
@@ -80,57 +65,46 @@ function updateFinvizLink(filters) {
 
 function colorPerfCell(td, value) {
   if (!value) return;
-  const s = value.replace("%", "").replace("+", "").trim();
-  const num = parseFloat(s);
+  const num = parseFloat(value.replace("%", "").replace("+", "").trim());
   if (isNaN(num)) return;
-  if (num > 0) {
-    td.classList.add("perf-positive");
-  } else if (num < 0) {
-    td.classList.add("perf-negative");
-  }
+  td.classList.add(num >= 0 ? "perf-positive" : "perf-negative");
 }
 
 function renderResults(results) {
-  // Clear table
   resultsTableBody.innerHTML = "";
-
   results.forEach((row) => {
     const tr = document.createElement("tr");
 
-    const tickerCell = document.createElement("td");
+    // Ticker cell with link
+    const tickerTd = document.createElement("td");
     const link = document.createElement("a");
-    link.href = `https://finviz.com/quote.ashx?t=${encodeURIComponent(
-      row.ticker
-    )}`;
+    link.href = `https://finviz.com/quote.ashx?t=${encodeURIComponent(row.ticker)}`;
     link.target = "_blank";
     link.textContent = row.ticker;
-    tickerCell.appendChild(link);
-    tr.appendChild(tickerCell);
+    tickerTd.appendChild(link);
+    tr.appendChild(tickerTd);
 
-    const cells = [
-      row.company,
-      row.sector,
-      row.industry,
-      row.marketCap,
-      row.pe,
-      row.fpe,
-      row.epsQoq,
-      row.salesQoq,
-      row.debtEq,
-      row.high52w,
-      row.low52w,
-      row.perfMonth,
-      row.perfYtd,
-      row.perfYear,
+    const fields = [
+      { val: row.company },
+      { val: row.sector },
+      { val: row.industry },
+      { val: row.marketCap },
+      { val: row.pe },
+      { val: row.fpe },
+      { val: row.epsQoq },
+      { val: row.salesQoq },
+      { val: row.debtEq },
+      { val: row.high52w },
+      { val: row.low52w },
+      { val: row.perfMonth, perf: true },
+      { val: row.perfYtd, perf: true },
+      { val: row.perfYear, perf: true },
     ];
 
-    cells.forEach((val, idx) => {
+    fields.forEach(({ val, perf }) => {
       const td = document.createElement("td");
       td.textContent = val || "";
-      // performance columns: last 3 in cells
-      if (idx >= cells.length - 3) {
-        colorPerfCell(td, val);
-      }
+      if (perf) colorPerfCell(td, val);
       tr.appendChild(td);
     });
 
@@ -150,9 +124,7 @@ async function runScan() {
 
   try {
     const resp = await fetch(url);
-    if (!resp.ok) {
-      throw new Error(`API error ${resp.status}`);
-    }
+    if (!resp.ok) throw new Error(`API error ${resp.status}`);
     const data = await resp.json();
     updateResultCount(data.count || 0);
     updateFinvizLink(data.filters || "");
@@ -165,19 +137,13 @@ async function runScan() {
   }
 }
 
-// Sort buttons
 document.querySelectorAll(".sort-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
-    document
-      .querySelectorAll(".sort-btn")
-      .forEach((b) => b.classList.remove("sort-btn-active"));
+    document.querySelectorAll(".sort-btn").forEach((b) => b.classList.remove("sort-btn-active"));
     btn.classList.add("sort-btn-active");
     currentSort = btn.getAttribute("data-sort");
     runScan();
   });
 });
 
-// Run button
-runScanBtn.addEventListener("click", () => {
-  runScan();
-});
+runScanBtn.addEventListener("click", runScan);

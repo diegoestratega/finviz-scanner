@@ -7,17 +7,17 @@
 </head>
 <body>
   <div class="container">
-    <h1>Finviz Fundamentals & Performance Scanner</h1>
+    <h1>Finviz Fundamentals &amp; Performance Scanner</h1>
 
     <div class="filters">
+
       <div class="filter-group">
         <label for="marketcap">Market Cap</label>
         <select id="marketcap">
           <option value="">Any</option>
-          <option value="cap_smallover">Small or larger</option>
-          <option value="cap_midover">Mid or larger</option>
-          <option value="cap_large">Large</option>
-          <option value="cap_mega">Mega</option>
+          <option value="cap_midover">&gt; $2B</option>
+          <option value="cap_largeover">&gt; $10B</option>
+          <option value="cap_megaover">&gt; $200B</option>
         </select>
       </div>
 
@@ -26,8 +26,10 @@
         <select id="pe">
           <option value="">Any</option>
           <option value="fa_pe_profitable">Profitable</option>
+          <option value="fa_pe_u10">Under 10</option>
+          <option value="fa_pe_u15">Under 15</option>
           <option value="fa_pe_u20">Under 20</option>
-          <option value="fa_pe_u30">Under 30</option>
+          <option value="fa_pe_u25">Under 25</option>
         </select>
       </div>
 
@@ -35,9 +37,11 @@
         <label for="fpe">Forward P/E</label>
         <select id="fpe">
           <option value="">Any</option>
-          <option value="fa_fpe_low">Low</option>
+          <option value="fa_fpe_profitable">Profitable</option>
+          <option value="fa_fpe_u10">Under 10</option>
           <option value="fa_fpe_u15">Under 15</option>
           <option value="fa_fpe_u20">Under 20</option>
+          <option value="fa_fpe_u25">Under 25</option>
         </select>
       </div>
 
@@ -46,8 +50,8 @@
         <select id="epsqoq">
           <option value="">Any</option>
           <option value="fa_epsqoq_pos">Positive</option>
-          <option value="fa_epsqoq_o10">> 10%</option>
-          <option value="fa_epsqoq_o25">> 25%</option>
+          <option value="fa_epsqoq_o10">&gt; 10%</option>
+          <option value="fa_epsqoq_o25">&gt; 25%</option>
         </select>
       </div>
 
@@ -56,8 +60,8 @@
         <select id="salesqoq">
           <option value="">Any</option>
           <option value="fa_salesqoq_pos">Positive</option>
-          <option value="fa_salesqoq_o10">> 10%</option>
-          <option value="fa_salesqoq_o25">> 25%</option>
+          <option value="fa_salesqoq_o10">&gt; 10%</option>
+          <option value="fa_salesqoq_o25">&gt; 25%</option>
         </select>
       </div>
 
@@ -75,9 +79,9 @@
         <label for="highlow52w">52W High/Low</label>
         <select id="highlow52w">
           <option value="">Any</option>
-          <option value="ta_highlow52w_b0to5p">0-5% below high</option>
-          <option value="ta_highlow52w_nh">New high</option>
-          <option value="ta_highlow52w_nl">New low</option>
+          <option value="ta_highlow52w_nl">New 52W Low</option>
+          <option value="ta_highlow52w_a0to10p">0-10% above 52W Low</option>
+          <option value="ta_highlow52w_a10to20p">10-20% above 52W Low</option>
         </select>
       </div>
 
@@ -87,13 +91,14 @@
           Optionable
         </label>
       </div>
+
     </div>
 
     <div class="sort-and-actions">
       <div class="sort-buttons">
-        <button data-sort="perfmon" class="sort-btn">Sort by Perf Month</button>
-        <button data-sort="perfytd" class="sort-btn sort-btn-active">Sort by Perf YTD</button>
-        <button data-sort="perfyear" class="sort-btn">Sort by Perf Year</button>
+        <button data-sort="perfmon" class="sort-btn">Sort by Perf Month ↑</button>
+        <button data-sort="perfytd" class="sort-btn sort-btn-active">Sort by Perf YTD ↑</button>
+        <button data-sort="perfyear" class="sort-btn">Sort by Perf Year ↑</button>
       </div>
       <div class="actions">
         <button id="runScanBtn">Run Scan</button>
@@ -101,10 +106,10 @@
     </div>
 
     <div class="status-bar">
-      <div id="loading" class="loading hidden">Loading...</div>
+      <div id="loading" class="loading hidden">⏳ Loading...</div>
       <div id="resultCount" class="result-count">No results yet</div>
       <a id="finvizLink" href="#" target="_blank" class="finviz-link hidden">
-        Open equivalent Finviz screener
+        ↗ Open equivalent Finviz screener
       </a>
     </div>
 
@@ -129,9 +134,7 @@
             <th>Perf Year</th>
           </tr>
         </thead>
-        <tbody>
-          <!-- results go here -->
-        </tbody>
+        <tbody></tbody>
       </table>
     </div>
   </div>

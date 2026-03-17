@@ -97,11 +97,6 @@ def extract_headers(soup: BeautifulSoup) -> List[str]:
 
 
 def is_valid_data_row(cells: List[str]) -> bool:
-    """
-    A valid stock row has:
-      cells[0] = row number (digits only)
-      cells[1] = ticker (1-6 uppercase letters)
-    """
     if len(cells) < 3:
         return False
     if not cells[0].isdigit():
@@ -117,21 +112,14 @@ def parse_table_rows(soup: BeautifulSoup) -> List[List[str]]:
         return []
 
     rows_data: List[List[str]] = []
-
     for row in table.find_all("tr"):
         all_tds = row.find_all("td")
         if not all_tds:
             continue
-
-        # Each data row has a large accessibility <td> first — skip cells > 100 chars
         cells = [td.get_text(strip=True) for td in all_tds if len(td.get_text(strip=True)) <= 100]
-
         if not is_valid_data_row(cells):
             continue
-
-        # Remove the leading row number (No.) column — not needed in data
-        rows_data.append(cells[1:])  # cells[0] = "1","2"... cells[1] = ticker
-
+        rows_data.append(cells[1:])  # strip leading row number
     return rows_data
 
 
@@ -146,7 +134,6 @@ def scrape_view(view: int, filters: str, sort: str, max_pages: int = 10) -> List
 
         if not headers:
             raw_headers = extract_headers(soup)
-            # Strip the "No." column from headers to match row stripping above
             if raw_headers and raw_headers[0] == "No.":
                 headers = raw_headers[1:]
             elif raw_headers:
@@ -188,21 +175,20 @@ def index_by_ticker(records: List[dict]) -> dict:
 @app.get("/api/debug")
 def debug():
     scraper = cloudscraper.create_scraper()
-    params = {"v": "140", "f": "", "o": "-perfytd", "r": "1"}
-    resp = scraper.get(FINVIZ_BASE, params=params, headers=HEADERS, timeout=15)
-    soup = BeautifulSoup(resp.text, "html.parser")
-    headers = extract_headers(soup)
-    rows = parse_table_rows(soup)
-    # Strip No. from headers for display
-    if headers and headers[0] == "No.":
-        headers = headers[1:]
-    return {
-        "status_code": resp.status_code,
-        "html_length": len(resp.text),
-        "headers": headers,
-        "first_3_rows": rows[:3],
-        "total_rows_parsed": len(rows),
-    }
+    results = {}
+    for view in [111, 140, 161]:
+        params = {"v": str(view), "f": "", "o": "perfytd", "r": "1"}
+        resp = scraper.get(FINVIZ_BASE, params=params, headers=HEADERS, timeout=15)
+        soup = BeautifulSoup(resp.text, "html.parser")
+        raw_headers = extract_headers(soup)
+        headers = raw_headers[1:] if raw_headers and raw_headers[0] == "No." else raw_headers
+        rows = parse_table_rows(soup)
+        results[f"v{view}"] = {
+            "headers": headers,
+            "first_row": rows[0] if rows else [],
+            "total_rows": len(rows),
+        }
+    return results
 
 
 @app.get("/api/scan")
@@ -228,70 +214,71 @@ def scan(
         highlow52w=highlow52w,
     )
 
+    # Ascending sort (no dash prefix)
     sort_map = {
-        "perfmon": "-perfmon",
-        "perfytd": "-perfytd",
-        "perfyear": "-perfyear",
+        "perfmon": "perfmon",
+        "perfytd": "perfytd",
+        "perfyear": "perfyear",
     }
-    sort_param = sort_map.get(sort, "-perfytd")
+    sort_param = sort_map.get(sort, "perfytd")
 
-    # v=140 = Performance view, v=130 = Financial view
+    # v=111 Overview  → Company, Sector, Industry, Market Cap, P/E, Fwd P/E
+    # v=161 Financial → EPS Q/Q, Sales Q/Q, Debt/Eq
+    # v=140 Performance → Perf Month, Perf YTD, Perf Year, etc.
+    overview_records = scrape_view(view=111, filters=filters, sort=sort_param)
+    fin_records = scrape_view(view=161, filters=filters, sort=sort_param)
     perf_records = scrape_view(view=140, filters=filters, sort=sort_param)
-    fin_records = scrape_view(view=130, filters=filters, sort=sort_param)
 
-    perf_by_ticker = index_by_ticker(perf_records)
+    overview_by_ticker = index_by_ticker(overview_records)
     fin_by_ticker = index_by_ticker(fin_records)
+    perf_by_ticker = index_by_ticker(perf_records)
 
-    merged: List[dict] = []
-    for ticker, perf_row in perf_by_ticker.items():
-        combined = dict(perf_row)
-        fin_row = fin_by_ticker.get(ticker, {})
-        for key in ["EPS Q/Q", "Sales Q/Q", "Debt/Eq"]:
-            if key in fin_row:
-                combined[key] = fin_row[key]
-        merged.append(combined)
+    # Build merged result keyed from overview (has company/sector/industry)
+    all_tickers = set(overview_by_ticker.keys()) | set(perf_by_ticker.keys())
 
     results = []
-    for row in merged:
-        ticker = row.get("Ticker")
-        if not ticker:
-            continue
+    for ticker in all_tickers:
+        ov = overview_by_ticker.get(ticker, {})
+        fin = fin_by_ticker.get(ticker, {})
+        perf = perf_by_ticker.get(ticker, {})
+
         results.append(
             {
                 "ticker": ticker,
-                "company": row.get("Company"),
-                "sector": row.get("Sector"),
-                "industry": row.get("Industry"),
-                "country": row.get("Country"),
-                "marketCap": row.get("Market Cap"),
-                "pe": row.get("P/E"),
-                "fpe": row.get("Fwd P/E"),
-                "epsQoq": row.get("EPS Q/Q"),
-                "salesQoq": row.get("Sales Q/Q"),
-                "debtEq": row.get("Debt/Eq"),
-                "high52w": row.get("52W High"),
-                "low52w": row.get("52W Low"),
-                "perfMonth": row.get("Perf Month"),
-                "perfYtd": row.get("Perf YTD"),
-                "perfYear": row.get("Perf Year"),
+                "company": ov.get("Company", ""),
+                "sector": ov.get("Sector", ""),
+                "industry": ov.get("Industry", ""),
+                "country": ov.get("Country", ""),
+                "marketCap": ov.get("Market Cap", ""),
+                "pe": ov.get("P/E", ""),
+                "fpe": ov.get("Fwd P/E", ""),
+                "epsQoq": fin.get("EPS Q/Q", ""),
+                "salesQoq": fin.get("Sales Q/Q", ""),
+                "debtEq": fin.get("Debt/Eq", fin.get("LT Debt/Eq", "")),
+                "high52w": perf.get("52W High", ov.get("52W High", "")),
+                "low52w": perf.get("52W Low", ov.get("52W Low", "")),
+                "perfMonth": perf.get("Perf Month", ""),
+                "perfYtd": perf.get("Perf YTD", ""),
+                "perfYear": perf.get("Perf Year", ""),
             }
         )
 
     def perf_to_float(val: Optional[str]) -> float:
         if not val:
-            return float("-inf")
+            return float("inf")  # push blanks to end on ascending sort
         s = val.replace("%", "").replace("+", "").strip()
         try:
             return float(s)
         except ValueError:
-            return float("-inf")
+            return float("inf")
 
+    # Ascending sort: lowest performance first
     if sort == "perfmon":
-        results.sort(key=lambda x: perf_to_float(x["perfMonth"]), reverse=True)
+        results.sort(key=lambda x: perf_to_float(x["perfMonth"]))
     elif sort == "perfytd":
-        results.sort(key=lambda x: perf_to_float(x["perfYtd"]), reverse=True)
+        results.sort(key=lambda x: perf_to_float(x["perfYtd"]))
     elif sort == "perfyear":
-        results.sort(key=lambda x: perf_to_float(x["perfYear"]), reverse=True)
+        results.sort(key=lambda x: perf_to_float(x["perfYear"]))
 
     return {
         "count": len(results),
