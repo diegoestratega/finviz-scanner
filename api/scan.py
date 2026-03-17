@@ -171,33 +171,38 @@ def index_by_ticker(records: List[dict]) -> dict:
     return index
 
 
-def get_field(d: dict, *keys: str) -> str:
-    """Try multiple possible column name variants, return first match."""
+def gf(d: dict, *keys: str) -> str:
+    """Return first non-empty, non-dash value from candidate keys."""
     for k in keys:
         v = d.get(k, "")
-        if v and v != "-":
+        if v and v.strip() not in ("", "-"):
             return v
     return ""
 
 
 @app.get("/api/debug")
 def debug():
-    """Scan views 111, 121, 131, 140, 161 and return their headers + first row."""
+    """Targeted debug for v121 and v151 to find Fwd P/E, EPS Q/Q, Sales Q/Q."""
     scraper = cloudscraper.create_scraper()
     results = {}
-    for view in [111, 121, 131, 140, 161]:
+    for view in [121, 151]:
         params = {"v": str(view), "f": "", "o": "ticker", "r": "1"}
-        resp = scraper.get(FINVIZ_BASE, params=params, headers=HEADERS, timeout=20)
-        soup = BeautifulSoup(resp.text, "html.parser")
-        raw_headers = extract_headers(soup)
-        headers = raw_headers[1:] if raw_headers and raw_headers[0] == "No." else raw_headers
-        rows = parse_table_rows(soup)
-        results[f"v{view}"] = {
-            "headers": headers,
-            "first_row": dict(zip(headers, rows[0])) if rows and headers else {},
-            "total_rows": len(rows),
-        }
-        time.sleep(0.3)
+        try:
+            resp = scraper.get(FINVIZ_BASE, params=params, headers=HEADERS, timeout=20)
+            soup = BeautifulSoup(resp.text, "html.parser")
+            raw_headers = extract_headers(soup)
+            headers = raw_headers[1:] if raw_headers and raw_headers[0] == "No." else raw_headers
+            rows = parse_table_rows(soup)
+            first = dict(zip(headers, rows[0])) if rows and headers else {}
+            results[f"v{view}"] = {
+                "status": resp.status_code,
+                "headers": headers,
+                "first_row": first,
+                "total_rows": len(rows),
+            }
+        except Exception as e:
+            results[f"v{view}"] = {"error": str(e)}
+        time.sleep(0.5)
     return results
 
 
@@ -224,18 +229,17 @@ def scan(
         highlow52w=highlow52w,
     )
 
-    # Sort all views by ticker for reliable consistent fetching.
-    # Final performance sort is done in Python below.
     fetch_sort = "ticker"
 
-    # v=111 Overview   → Company, Market Cap, P/E, Fwd P/E
-    # v=121 Valuation  → EPS Q/Q, Sales Q/Q (also P/E, Fwd P/E backup)
-    # v=161 Financial  → Debt/Eq, LT Debt/Eq
-    # v=140 Performance → Perf Month, Perf YTD, Perf Year
-    overview_records  = scrape_view(view=111, filters=filters, sort=fetch_sort)
-    val_records       = scrape_view(view=121, filters=filters, sort=fetch_sort)
-    fin_records       = scrape_view(view=161, filters=filters, sort=fetch_sort)
-    perf_records      = scrape_view(view=140, filters=filters, sort=fetch_sort)
+    # Confirmed views:
+    # v111 → Company, Market Cap, P/E
+    # v121 → Fwd P/E, EPS Q/Q, Sales Q/Q  (valuation)
+    # v161 → Debt/Eq, LTDebt/Eq
+    # v140 → Perf Month, Perf YTD, Perf Year
+    overview_records = scrape_view(view=111, filters=filters, sort=fetch_sort)
+    val_records      = scrape_view(view=121, filters=filters, sort=fetch_sort)
+    fin_records      = scrape_view(view=161, filters=filters, sort=fetch_sort)
+    perf_records     = scrape_view(view=140, filters=filters, sort=fetch_sort)
 
     overview_by_ticker = index_by_ticker(overview_records)
     val_by_ticker      = index_by_ticker(val_records)
@@ -253,16 +257,16 @@ def scan(
 
         results.append({
             "ticker":    ticker,
-            "company":   get_field(ov, "Company"),
-            "marketCap": get_field(ov, "Market Cap"),
-            "pe":        get_field(ov, "P/E") or get_field(val, "P/E"),
-            "fpe":       get_field(ov, "Fwd P/E") or get_field(val, "Fwd P/E"),
-            "epsQoq":    get_field(val, "EPS Q/Q", "EPS Qtr over Qtr"),
-            "salesQoq":  get_field(val, "Sales Q/Q", "Sales Qtr over Qtr"),
-            "debtEq":    get_field(fin, "Debt/Eq", "LT Debt/Eq", "Total Debt/Eq"),
-            "perfMonth": get_field(perf, "Perf Month"),
-            "perfYtd":   get_field(perf, "Perf YTD"),
-            "perfYear":  get_field(perf, "Perf Year"),
+            "company":   gf(ov,   "Company"),
+            "marketCap": gf(ov,   "Market Cap"),
+            "pe":        gf(ov,   "P/E"),
+            "fpe":       gf(val,  "Fwd P/E", "Forward P/E"),
+            "epsQoq":    gf(val,  "EPS Q/Q", "EPS Qtr over Qtr"),
+            "salesQoq":  gf(val,  "Sales Q/Q", "Sales Qtr over Qtr"),
+            "debtEq":    gf(fin,  "Debt/Eq", "LTDebt/Eq", "LT Debt/Eq"),
+            "perfMonth": gf(perf, "Perf Month"),
+            "perfYtd":   gf(perf, "Perf YTD"),
+            "perfYear":  gf(perf, "Perf Year"),
         })
 
     def perf_to_float(val: Optional[str]) -> float:
@@ -274,7 +278,6 @@ def scan(
         except ValueError:
             return float("inf")
 
-    # Ascending sort
     if sort == "perfmon":
         results.sort(key=lambda x: perf_to_float(x["perfMonth"]))
     elif sort == "perfytd":
