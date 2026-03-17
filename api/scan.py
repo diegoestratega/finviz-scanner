@@ -118,7 +118,7 @@ def parse_table_rows(soup: BeautifulSoup) -> List[List[str]]:
         cells = [td.get_text(strip=True) for td in all_tds if len(td.get_text(strip=True)) <= 100]
         if not is_valid_data_row(cells):
             continue
-        rows_data.append(cells[1:])  # strip row number
+        rows_data.append(cells[1:])
     return rows_data
 
 
@@ -172,7 +172,6 @@ def index_by_ticker(records: List[dict]) -> dict:
 
 
 def gf(d: dict, *keys: str) -> str:
-    """Return first non-empty, non-dash value from candidate keys."""
     for k in keys:
         v = d.get(k, "")
         if v and v.strip() not in ("", "-"):
@@ -182,28 +181,21 @@ def gf(d: dict, *keys: str) -> str:
 
 @app.get("/api/debug")
 def debug():
-    """Targeted debug for v121 and v151 to find Fwd P/E, EPS Q/Q, Sales Q/Q."""
+    """Check exact column names from v121 (Valuation view)."""
     scraper = cloudscraper.create_scraper()
-    results = {}
-    for view in [121, 151]:
-        params = {"v": str(view), "f": "", "o": "ticker", "r": "1"}
-        try:
-            resp = scraper.get(FINVIZ_BASE, params=params, headers=HEADERS, timeout=20)
-            soup = BeautifulSoup(resp.text, "html.parser")
-            raw_headers = extract_headers(soup)
-            headers = raw_headers[1:] if raw_headers and raw_headers[0] == "No." else raw_headers
-            rows = parse_table_rows(soup)
-            first = dict(zip(headers, rows[0])) if rows and headers else {}
-            results[f"v{view}"] = {
-                "status": resp.status_code,
-                "headers": headers,
-                "first_row": first,
-                "total_rows": len(rows),
-            }
-        except Exception as e:
-            results[f"v{view}"] = {"error": str(e)}
-        time.sleep(0.5)
-    return results
+    params = {"v": "121", "f": "", "o": "ticker", "r": "1"}
+    resp = scraper.get(FINVIZ_BASE, params=params, headers=HEADERS, timeout=20)
+    soup = BeautifulSoup(resp.text, "html.parser")
+    raw_headers = extract_headers(soup)
+    headers = raw_headers[1:] if raw_headers and raw_headers[0] == "No." else raw_headers
+    rows = parse_table_rows(soup)
+    first = dict(zip(headers, rows[0])) if rows and headers else {}
+    return {
+        "status": resp.status_code,
+        "v121_headers": headers,
+        "v121_first_row": first,
+        "total_rows": len(rows),
+    }
 
 
 @app.get("/api/scan")
@@ -231,11 +223,6 @@ def scan(
 
     fetch_sort = "ticker"
 
-    # Confirmed views:
-    # v111 → Company, Market Cap, P/E
-    # v121 → Fwd P/E, EPS Q/Q, Sales Q/Q  (valuation)
-    # v161 → Debt/Eq, LTDebt/Eq
-    # v140 → Perf Month, Perf YTD, Perf Year
     overview_records = scrape_view(view=111, filters=filters, sort=fetch_sort)
     val_records      = scrape_view(view=121, filters=filters, sort=fetch_sort)
     fin_records      = scrape_view(view=161, filters=filters, sort=fetch_sort)
@@ -260,10 +247,10 @@ def scan(
             "company":   gf(ov,   "Company"),
             "marketCap": gf(ov,   "Market Cap"),
             "pe":        gf(ov,   "P/E"),
-            "fpe":       gf(val,  "Fwd P/E", "Forward P/E"),
-            "epsQoq":    gf(val,  "EPS Q/Q", "EPS Qtr over Qtr"),
-            "salesQoq":  gf(val,  "Sales Q/Q", "Sales Qtr over Qtr"),
-            "debtEq":    gf(fin,  "Debt/Eq", "LTDebt/Eq", "LT Debt/Eq"),
+            "fpe":       gf(val,  "Fwd P/E", "Forward P/E", "P/E (fwd)"),
+            "epsQoq":    gf(val,  "EPS Q/Q", "EPS Qtr over Qtr", "EPS Q/Q %"),
+            "salesQoq":  gf(val,  "Sales Q/Q", "Sales Qtr over Qtr", "Sales Q/Q %"),
+            "debtEq":    gf(fin,  "Debt/Eq", "LTDebt/Eq", "LT Debt/Eq", "Total Debt/Eq"),
             "perfMonth": gf(perf, "Perf Month"),
             "perfYtd":   gf(perf, "Perf YTD"),
             "perfYear":  gf(perf, "Perf Year"),
